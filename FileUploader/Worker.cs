@@ -21,6 +21,7 @@ namespace PhotoUploader
         private readonly int DelayAwait = 300000;
         private List<string> UploadedImages { get;}
         private Queue<string> FailedUploads { get;}
+        private List<string> PhotosUrls { get; set; }
         private readonly ILogger<Worker> _logger;
         private readonly IConfiguration _configuration;
         private  FileSystemWatcher _watcher;
@@ -40,7 +41,15 @@ namespace PhotoUploader
             Directory.CreateDirectory(_configuration.GetValue<string>(directoryKey));
 
             _watcher=new FileSystemWatcher(_configuration.GetValue<string>(directoryKey),"*.jpg");
-            _cloudinary = new Cloudinary();
+            _watcher.EnableRaisingEvents = true;
+            _watcher.Created +=OnFileCreatedAction;
+            Account account = new Account(
+                _configuration.GetValue<string>("CloudName"),
+                _configuration.GetValue<string>("CloudKey"),
+                _configuration.GetValue<string>("CloudSecret")
+            );
+
+            _cloudinary = new Cloudinary(account);
             _logger.LogInformation(_successStart);
             return base.StartAsync(cancellationToken);
         }
@@ -57,7 +66,6 @@ namespace PhotoUploader
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                _watcher.Created +=OnFileCreatedAction;
                 bool failed = FailedUploads.Any();
                 if (failed)
                 {
@@ -110,7 +118,8 @@ namespace PhotoUploader
                 return false;
             }
             UploadedImages.Add(filePath);
-            _logger.LogInformation($"Image with id: {result.PublicId} was uploaded at {DateTime.Now.ToLongDateString()}");
+            PhotosUrls.Add(result.SecureUri.AbsoluteUri);
+            _logger.LogInformation($"Image with id: {result.PublicId} was uploaded at {DateTime.Now.ToLongDateString()} with accesible url: {result.SecureUri.AbsoluteUri}");
             return true;
         }
 
@@ -136,6 +145,8 @@ namespace PhotoUploader
                     var success = UploadAction(current);
                     if (success)
                     {
+                    
+                       _logger.LogInformation($"Uploaded {current} at {DateTime.Now.ToLongDateString()} from failed uploads");
                         File.Delete(current);
                     }
                     else

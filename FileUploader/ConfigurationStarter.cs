@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using Serilog.Events;
+using System.Runtime.InteropServices;
 
 namespace PhotoUploader
 {
@@ -16,7 +17,16 @@ namespace PhotoUploader
         private static string _failMessage = "{0} It didn't start correctly";
         public static void StartApp(string []args)
         {
-            var configuration = new ConfigurationBuilder().AddJsonFile("appsettings.json")
+
+            if(RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+
+
+            }
+            var configuration = new ConfigurationBuilder()
+           //.AddJsonFile ("appsettings.json", false, reloadOnChange : true)
+            .AddJsonFile ("appsettings.Linux.Development.json", true, reloadOnChange : true)
+            .AddEnvironmentVariables()
             .Build();
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
@@ -55,7 +65,8 @@ namespace PhotoUploader
                     configApp.AddJsonFile(_settingsFile, optional: true);
                     configApp.AddCommandLine(args);
                 })
-                .UseWindowsService()
+                .UseSystemd()
+                //.UseWindowsService()
                 .UseSerilog()
                 .ConfigureServices((hostContext, services) => services.AddHostedService<Worker>());
     }
